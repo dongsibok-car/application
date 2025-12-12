@@ -93,7 +93,6 @@
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 sm:p-6 lg:p-8">
     <div class="w-full max-w-2xl glass-morphism p-8 sm:p-10 rounded-3xl shadow-2xl fade-in">
-        <!-- 헤더 -->
         <div class="text-center mb-8">
             <div class="inline-block p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-4">
                 <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -108,7 +107,6 @@
             </p>
         </div>
 
-        <!-- 신청 폼 -->
         <form id="applicationForm" class="space-y-5">
             <div>
                 <label for="name" class="block text-sm font-semibold text-gray-700 mb-2">이름</label>
@@ -181,7 +179,6 @@
             </div>
         </form>
 
-        <!-- 성공 메시지 -->
         <div id="successMessage" class="hidden mt-8 text-center fade-in">
             <svg class="success-checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
                 <circle class="success-checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
@@ -190,6 +187,7 @@
             <div class="mt-6">
                 <h3 class="text-2xl font-bold text-gray-800 mb-2">신청 완료!</h3>
                 <p class="text-gray-600">신청이 성공적으로 접수되었습니다.</p>
+                <p id="assignedDriver" class="text-lg font-semibold text-indigo-600 mt-3">배차 정보를 확인 중입니다.</p> 
             </div>
         </div>
     </div>
@@ -201,8 +199,9 @@
     const boardingLocationSelect = document.getElementById('boardingLocation');
     const submitButton = form.querySelector('button[type="submit"]');
     const countDisplay = document.getElementById('countDisplay');
+    const assignedDriverDisplay = document.getElementById('assignedDriver'); // 새로 추가된 요소
 
-    let appsScriptUrl = 'https://script.google.com/macros/s/AKfycbxig07E4bX0ecSCVP8ktfUnEZyzhCtBuv8aLvzmkDh4RGgBTnkmmBrt-RQOO_-fI5pI4w/exec';
+    let appsScriptUrl = 'https://script.google.com/macros/s/AKfycbyn3P6oj3Muq53FvvLVrbj38nW18lPD2d1qWHEpNp-_AcrGaSkl87eaEREnetfnLdqi7w/exec';
 
     const checkAvailability = async () => {
         const selectedDate = tripDateInput.value;
@@ -216,6 +215,7 @@
         }
 
         try {
+            // GET 요청을 통해 인원 카운트 확인
             const response = await fetch(`${appsScriptUrl}?action=getCount&date=${encodeURIComponent(selectedDate)}&location=${encodeURIComponent(selectedLocation)}`);
             const data = await response.json();
             const count = data.count;
@@ -253,6 +253,10 @@
             alert('이미 마감된 시간입니다.');
             return;
         }
+        
+        // 버튼 텍스트 변경 및 비활성화 (로딩 상태 표시)
+        submitButton.textContent = '신청 중...';
+        submitButton.disabled = true;
 
         const formData = new FormData(form);
         
@@ -271,16 +275,39 @@
             if (data.result === 'success') {
                 form.classList.add('hidden');
                 successMessage.classList.remove('hidden');
+                
+                // --- [수정된 부분] 할당된 운전자 이름 표시 ---
+                if (data.driverName) {
+                    assignedDriverDisplay.textContent = `배차 운전자: ${data.driverName}님 (알림 완료)`;
+                } else {
+                    assignedDriverDisplay.textContent = `배차는 완료되었으나, 운전자 정보는 확인되지 않습니다.`;
+                }
+                // ------------------------------------------
+
             } else if (data.result === 'failure' && data.message) {
-                alert(data.message);
-                checkAvailability();
+                alert(`신청 실패: ${data.message}`);
+                checkAvailability(); // 실패 후 다시 인원 확인
+                
+                // 버튼 상태 복구
+                submitButton.textContent = '신청하기';
+                submitButton.disabled = false;
+                
             } else {
                 console.error('신청 실패:', data.message);
+                alert('신청 처리 중 예상치 못한 오류가 발생했습니다.');
+                
+                // 버튼 상태 복구
+                submitButton.textContent = '신청하기';
+                submitButton.disabled = false;
             }
         })
         .catch(error => {
             console.error('전송 중 오류 발생:', error);
-            alert('신청 중 오류가 발생했습니다. 다시 시도해 주세요.');
+            alert('신청 중 네트워크 오류가 발생했습니다. 다시 시도해 주세요.');
+            
+            // 버튼 상태 복구
+            submitButton.textContent = '신청하기';
+            submitButton.disabled = false;
         });
 
         window.scrollTo({
